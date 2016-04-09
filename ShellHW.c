@@ -10,18 +10,21 @@
 #include    <sys/types.h>
 #include    <sys/wait.h>
 #include    <unistd.h>
+#include <fcntl.h>
 
 
 // A line may be at most 100 characters long, which means longest word is 100 chars,
 // and max possible tokens is 51 as must be space between each
 size_t MAX_WORD_LENGTH = 100;
 size_t MAX_NUM_WORDS = 51;
+size_t MAX_FILE_LENGTH = 4096;
 
 typedef struct{
     char **entireGroupText;
     bool IORedirect;
     bool pipe; //only pipe or IORedirect can be true, not both
     char *outputFile; //NULL if there is no IORedirect
+    char *inputFile; //NULL if there is no IORedirect OR if there's already an outputFile
 }TokenNode;
 
 
@@ -31,18 +34,20 @@ char** readLineOfWords();
 int getNumNodes(char **line); //gets the number of total commands on the line (delimted by a pipe). This is only 1 if there is no pipe on the line
 TokenNode **getStartNode(char **line);
 bool isBackgroundProcess(char **line);
-void processLineOfTokens(char **tokens);
+void processLineOfTokens(TokenNode **tokens);
 
 int main(){
     int status;
     //read line of words
     char** line = readLineOfWords();
-    TokenNode **tokens = getStartNode(line);
+    TokenNode **tokens;
     
     while (line != NULL)
     {
         int pid = fork();
-        if (isBackgroundProcess(line)){
+        bool isBackground = isBackgroundProcess(line);
+        tokens = getStartNode(line);
+        if (isBackground){
             if (pid == 0){
                 processLineOfTokens(tokens);
             }
@@ -51,7 +56,7 @@ int main(){
                 processLineOfTokens(tokens);
             }else{
                 int status;
-                waitpidpid,&status,0);
+                waitpid(pid,&status,0);
             }
         }
         line = readLineOfWords();
@@ -65,7 +70,24 @@ void processLineOfTokens(TokenNode **tokens){
     int i = 0;
     TokenNode *pointer = tokens[i];
     while (pointer != NULL){
-        execvp(pointer->entireGroupText[0],pointer->entireGroupText);
+        int pid = fork();
+        if (pid == 0){
+            if (pointer->IORedirect){
+                if (pointer->outputFile){
+                    int outFileFD = open(pointer->outputFile,O_CREAT|O_WRONLY,0644);
+                    fflush(stdout);
+                    dup2(outFileFD,1);
+                }else{
+                    int inFileFD = open(pointer->inputFile,O_RDONLY,0644);
+                    fflush(stdout);
+                    dup2(inFileFD,1);
+                }
+            }
+            execvp(pointer->entireGroupText[0],pointer->entireGroupText);
+        }else{
+            int status;
+            waitpid(pid,&status,0);
+        }
         i++;
         pointer = tokens[i];
     }
@@ -76,11 +98,15 @@ bool isBackgroundProcess(char **line){
     char *word = line[counter];
     while(word != NULL){
         if (*word == '&'){
+            free(word);
+            line[counter] = NULL;
             return true;
         }
         counter ++;
         word = line[counter];
     }
+    counter = 0;
+    word = line[counter];
     return false;
 }
 
@@ -114,11 +140,16 @@ TokenNode **getStartNode(char **line){
         char *command;
         TokenNode *node = malloc(sizeof(TokenNode));
         char *outputIfNeeded = NULL;
+        char *inputIfNeeded = NULL;
         for (int j=0; j<numWordsInGroup[i]; j++){
             char *wordInGroup = line[indexInLine];
             if (*wordInGroup == '>'){
                 indexInLine = indexInLine+1;
                 outputIfNeeded = line[indexInLine];
+                break;
+            }else if (*wordInGroup == '<'){
+                indexInLine = indexInLine+1;
+                inputIfNeeded = line[indexInLine];
                 break;
             }else if(*wordInGroup == '|'){
                 printf("Shouldn't be in here...\n");
@@ -128,9 +159,14 @@ TokenNode **getStartNode(char **line){
             }
         }
         node->entireGroupText = entireGroupWord;
-        node->IORedirect = (outputIfNeeded == NULL ? false : true);
+        if (outputIfNeeded || inputIfNeeded){
+            node->IORedirect = true;
+        }else{
+            node->IORedirect = false;
+        }
         node->pipe = (i == (numNodes-1) ? false : true);
         node->outputFile = outputIfNeeded;
+        node->inputFile = inputIfNeeded;
         indexInLine ++;
         nodes[i] = node;
     }
