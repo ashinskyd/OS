@@ -35,6 +35,7 @@ int getNumNodes(char **line); //gets the number of total commands on the line (d
 TokenNode **getStartNode(char **line);
 bool isBackgroundProcess(char **line);
 void processLineOfTokens(TokenNode **tokens);
+void executeNextProcessWithReadFD(TokenNode *node, int readFD);
 
 int main(){
     int status;
@@ -70,6 +71,10 @@ void processLineOfTokens(TokenNode **tokens){
     int i = 0;
     TokenNode *pointer = tokens[i];
     while (pointer != NULL){
+        int desp[2];
+        if (pointer->pipe){
+            pipe(desp);
+        }
         int pid = fork();
         if (pid == 0){
             if (pointer->IORedirect){
@@ -77,11 +82,15 @@ void processLineOfTokens(TokenNode **tokens){
                     int outFileFD = open(pointer->outputFile,O_CREAT|O_WRONLY,0644);
                     fflush(stdout);
                     dup2(outFileFD,1);
-                }else{
-                    int inFileFD = open(pointer->inputFile,O_RDONLY,0644);
-                    fflush(stdout);
-                    dup2(inFileFD,1);
+                    close(outFileFD);
                 }
+                if (pointer->inputFile){
+                    int inFileFD = open(pointer->inputFile,O_RDONLY,0644);
+                    dup2(inFileFD,STDIN_FILENO);
+                    close(inFileFD);
+                }
+            }else if (pointer->pipe){
+                dup2(desp[1],STDOUT_FILENO);
             }
             execvp(pointer->entireGroupText[0],pointer->entireGroupText);
         }else{
@@ -136,11 +145,12 @@ TokenNode **getStartNode(char **line){
     
     int indexInLine = 0;
     for (int i=0; i<numNodes; i++){
-        char **entireGroupWord = malloc(sizeof(char *)*MAX_WORD_LENGTH*numWordsInGroup[i]);
+        char **entireGroupWord = malloc(sizeof(char *)*MAX_WORD_LENGTH*(numWordsInGroup[i]+1));
         char *command;
         TokenNode *node = malloc(sizeof(TokenNode));
         char *outputIfNeeded = NULL;
         char *inputIfNeeded = NULL;
+        int indexInArray = 0;
         for (int j=0; j<numWordsInGroup[i]; j++){
             char *wordInGroup = line[indexInLine];
             if (*wordInGroup == '>'){
@@ -150,14 +160,16 @@ TokenNode **getStartNode(char **line){
             }else if (*wordInGroup == '<'){
                 indexInLine = indexInLine+1;
                 inputIfNeeded = line[indexInLine];
-                break;
             }else if(*wordInGroup == '|'){
                 printf("Shouldn't be in here...\n");
             }else{
-                entireGroupWord[j]=wordInGroup;
+                entireGroupWord[indexInArray]=wordInGroup;
                 indexInLine ++;
+                indexInArray ++;
             }
         }
+        //TODO: Should really be clearing the memory for unused words...
+        entireGroupWord[numWordsInGroup[i]+1] = NULL;
         node->entireGroupText = entireGroupWord;
         if (outputIfNeeded || inputIfNeeded){
             node->IORedirect = true;
