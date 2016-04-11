@@ -32,10 +32,10 @@ typedef struct{
 **/
 char** readLineOfWords();
 int getNumNodes(char **line); //gets the number of total commands on the line (delimted by a pipe). This is only 1 if there is no pipe on the line
-TokenNode **getStartNode(char **line);
-bool isBackgroundProcess(char **line);
-void processLineOfTokens(TokenNode **tokens);
-void executeNextProcessWithReadFD(TokenNode *node, int readFD);
+TokenNode **getStartNode(char **line); //returns array of nodes for processing (or just 1 node if there's no pipe
+bool isBackgroundProcess(char **line); //YES if the process is backgrounded (&)
+void processLineOfTokens(TokenNode **tokens); //processes a single line of tokens
+void processToken(TokenNode *node); //processes a single token
 
 int main(){
     int status;
@@ -47,7 +47,9 @@ int main(){
     {
         int pid = fork();
         bool isBackground = isBackgroundProcess(line);
-        tokens = getStartNode(line);
+        if (pid == 0){
+            tokens = getStartNode(line);
+        }
         if (isBackground){
             if (pid == 0){
                 processLineOfTokens(tokens);
@@ -62,46 +64,59 @@ int main(){
         }
         line = readLineOfWords();
     }
-    
-    //TODO: free memory
     return 0;
 }
 
 void processLineOfTokens(TokenNode **tokens){
     int i = 0;
     TokenNode *pointer = tokens[i];
-    while (pointer != NULL){
-        int desp[2];
-        if (pointer->pipe){
-            pipe(desp);
-        }
-        int pid = fork();
-        if (pid == 0){
-            if (pointer->IORedirect){
-                if (pointer->outputFile){
-                    int outFileFD = open(pointer->outputFile,O_CREAT|O_WRONLY,0644);
-                    fflush(stdout);
-                    dup2(outFileFD,1);
-                    close(outFileFD);
-                }
-                if (pointer->inputFile){
-                    int inFileFD = open(pointer->inputFile,O_RDONLY,0644);
-                    dup2(inFileFD,STDIN_FILENO);
-                    close(inFileFD);
-                }
-            }else if (pointer->pipe){
-                dup2(desp[1],STDOUT_FILENO);
+    
+    if (!pointer->pipe){
+        processToken(pointer);
+    }
+    else
+    {
+        while (pointer != NULL){
+            if (!pointer->pipe){
+                processToken(pointer);
+                //process will terminate in processToken function
             }
-            execvp(pointer->entireGroupText[0],pointer->entireGroupText);
-        }else{
-            int status;
-            waitpid(pid,&status,0);
+            int desp[2];
+            pipe(desp);
+            int pid = fork();
+            if (pid == 0){
+                close(desp[0]);
+                dup2(desp[1],1);
+                processToken(pointer);
+            }else{
+                close(desp[1]);
+                int status;
+                waitpid(pid,&status,0);
+                dup2(desp[0],STDIN_FILENO);
+            }
+            i++;
+            pointer = tokens[i];
         }
-        i++;
-        pointer = tokens[i];
     }
 }
 
+void processToken(TokenNode *pointer){
+    if (pointer->IORedirect){
+        if (pointer->outputFile){
+            int outFileFD = open(pointer->outputFile,O_CREAT|O_WRONLY,0644);
+            fflush(stdout);
+            dup2(outFileFD,1);
+            close(outFileFD);
+        }
+        if (pointer->inputFile){
+            int inFileFD = open(pointer->inputFile,O_RDONLY,0644);
+            dup2(inFileFD,STDIN_FILENO);
+            close(inFileFD);
+        }
+    }
+    execvp(pointer->entireGroupText[0],pointer->entireGroupText);
+}
+                       
 bool isBackgroundProcess(char **line){
     int counter = 0;
     char *word = line[counter];
@@ -145,8 +160,7 @@ TokenNode **getStartNode(char **line){
     
     int indexInLine = 0;
     for (int i=0; i<numNodes; i++){
-        char **entireGroupWord = malloc(sizeof(char *)*MAX_WORD_LENGTH*(numWordsInGroup[i]+1));
-        char *command;
+        char **entireGroupWord = malloc(sizeof(char *)*(numWordsInGroup[i]+1));
         TokenNode *node = malloc(sizeof(TokenNode));
         char *outputIfNeeded = NULL;
         char *inputIfNeeded = NULL;
@@ -168,8 +182,22 @@ TokenNode **getStartNode(char **line){
                 indexInArray ++;
             }
         }
-        //TODO: Should really be clearing the memory for unused words...
-        entireGroupWord[numWordsInGroup[i]+1] = NULL;
+        
+        char *tempPointer = entireGroupWord[0];
+        int lastKnownWordIndex = 0;
+        while (tempPointer != NULL){
+            lastKnownWordIndex ++;
+            tempPointer = entireGroupWord[lastKnownWordIndex];
+            if (tempPointer == NULL){
+                lastKnownWordIndex = lastKnownWordIndex - 1;
+                break;
+            }
+        }
+        for (int j=lastKnownWordIndex+1; j<numWordsInGroup[i]+1; j++){
+            free(entireGroupWord[j]);
+            entireGroupWord[j] = NULL;
+        }
+        
         node->entireGroupText = entireGroupWord;
         if (outputIfNeeded || inputIfNeeded){
             node->IORedirect = true;
