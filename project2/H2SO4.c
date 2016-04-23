@@ -1,6 +1,6 @@
 //
 //  H2SO4.c
-//  
+//
 //
 //  Created by David Ashinsky on 4/23/16.
 //
@@ -20,6 +20,7 @@ sem_t* hydro_left_sem;
 sem_t* oxygen_sem;
 sem_t* oxygen_leave_sem;
 sem_t* oxygen_left_sem;
+sem_t* leaving_inprogress_sem;
 
 void* oxygen(void*a)
 {
@@ -66,9 +67,12 @@ void* sulfur(void*a)
         err =sem_wait(oxygen_sem);
         if (err==-1){printf("Error waiting for oxygen");}
     }
+    sem_wait(leaving_inprogress_sem);
+    
     printf("Molecule Produced\n");
     fflush(stdout);
     //signal  threads to depart
+    
     
     for (int i=0; i<2; i++)
     {
@@ -85,11 +89,12 @@ void* sulfur(void*a)
     {
         sem_post(oxygen_leave_sem);
     }
-
+    
     for (int i=0; i<4; i++)
     {
         sem_wait(oxygen_left_sem);
     }
+    sem_post(leaving_inprogress_sem);
     return (void *)0;
 }
 void openSems()
@@ -183,6 +188,21 @@ void openSems()
             exit(1);
         }
     }
+    
+    leaving_inprogress_sem = sem_open("leaving_inprogress_sem", O_CREAT|O_EXCL, 0466, 1);
+    while (leaving_inprogress_sem==SEM_FAILED) {
+        if (errno == EEXIST) {
+            printf("semaphore leaving_inprogress_sem already exists, unlinking and reopening\n");
+            fflush(stdout);
+            sem_unlink("leaving_inprogress_sem");
+            oxygen_left_sem = sem_open("oxygleftsmphr", O_CREAT|O_EXCL, 0466, 0);
+        }
+        else {
+            printf("semaphore could not be opened, error # %d\n", errno);
+            fflush(stdout);
+            exit(1);
+        }
+    }
 }
 void closeSems()
 {
@@ -198,4 +218,6 @@ void closeSems()
     sem_unlink("hydroleftsmphr");
     sem_close(oxygen_left_sem);
     sem_unlink("oxygleftsmphr");
+    sem_close(leaving_inprogress_sem);
+    sem_unlink("leaving_inprogress_sem");
 }
