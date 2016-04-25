@@ -6,10 +6,6 @@
 #include <errno.h>
 #include <stdlib.h>
 
-//Condition variables for signaling that all threads are completely setup and ready to process
-pthread_mutex_t boat_captain_mutex;
-pthread_cond_t boat_captain_cv;
-int boatHasCaptain = 0;
 
 pthread_mutex_t boat_location_mutex;
 pthread_cond_t boat_location_cv;
@@ -45,7 +41,8 @@ int okToProceed = 0;
 
 void *child(void*);
 void *adult(void*);
-void boatDepartingSource(int);
+void boatDepartingSource();
+void childReturningToSource();
 void initSync();
 
 int main(int argc, char *argv[])
@@ -77,9 +74,9 @@ int main(int argc, char *argv[])
      	printf("Waiting For threads to be created...\n");
       	pthread_cond_wait(&all_ready_cv, &thread_count_mutex);
     }
-
     //when all threads have been created, allow them to proceed
     pthread_mutex_unlock(&thread_count_mutex);
+    
     printf("All Threads Created\n");
     pthread_mutex_lock(&proceed_mutex);
     okToProceed = 1;
@@ -112,9 +109,6 @@ void initSync()
 
 	pthread_cond_init(&boat_pax_cv,NULL);
 	pthread_mutex_init(&boat_pax_mutex,NULL);
-
-	pthread_cond_init(&boat_captain_cv,NULL);
-	pthread_mutex_init(&boat_captain_mutex,NULL);
 }
 
 void *child(void* a){
@@ -135,38 +129,60 @@ void *child(void* a){
     //wait until the boat is at the start location before boarding
 	pthread_mutex_lock(&boat_location_mutex);
 	while (boat_location==1){
+        pthread_cond_broadcast(&boat_location_cv);
 		pthread_cond_wait(&boat_location_cv,&boat_location_mutex);
 	}
-
 	//once the boat is at the source island, proceed with boarding
-	pthread_mutex_lock(&source_count_mutex);
-	pthread_mutex_lock(&boat_pax_mutex);
-	
 	if (numAdultsOnSource == 0)
 	{
 		if (numChildrenOnSource == 1){
 			printf("Child Is boarding the boat\n");
 			boat_pax = 1;
-			boatHasCaptain = 1;
-			boatDepartingSource(1);
+			boatDepartingSource();
+            
+            pthread_mutex_unlock(&boat_location_mutex);
+            return (void *)0;
 		}else if (numChildrenOnSource == 2){
 			if (boat_pax==0)
 			{
-				printf("First Child is boarding the boat\n");
+				printf("Child is boarding the boat\n");
 				boat_pax = 1;
-				if (!boatHasCaptain)
-				{
-					boatHasCaptain = 1;
-				}
-				pthread_cond_signal(&boat_pax_cv);
-			}else if (boat_pax ==1){
-				pthread_cond_signal(&boat_pax_cv);
+                pthread_cond_wait(&boat_location_cv,&boat_location_mutex);
+                
+                pthread_mutex_unlock(&boat_location_mutex);
+                return (void *)0;
+            }else if (boat_pax ==1){
 				boat_pax = 2;
-				printf("Second Child is boarding the boat\n");
+				printf("Child is boarding the boat\n");
+                boatDepartingSource();
+                
+                pthread_mutex_unlock(&boat_location_mutex);
+                return (void *)0;
 			}
-		}
-	}
-	
+        }else{
+            if (boat_pax==0)
+            {
+                printf("Child is boarding the boat\n");
+                boat_pax = 1;
+                pthread_cond_wait(&boat_location_cv,&boat_location_mutex);
+                
+                pthread_mutex_unlock(&boat_location_mutex);
+                return (void *)0;
+            }else if (boat_pax ==1){
+                boat_pax = 2;
+                printf("Child is boarding the boat\n");
+                boatDepartingSource();
+                
+                int thisThreadLocation = 1;
+                pthread_cond_wait(&boat_location_cv,&boat_location_mutex);
+                childReturningToSource();
+                thisThreadLocation = 0;
+                
+                
+            }
+        }
+    }
+    pthread_mutex_unlock(&boat_location_mutex);
 	return (void *)0;
 }
 
@@ -189,17 +205,35 @@ void *adult(void* a){
 	return (void *)0;
 }
 
-void boatDepartingSource(int isCaptain)
+void childReturningToSource()
 {
-	if (isCaptain){
-		printf("Boat is crossing the river\n");	
-		boat_location = 1;
-		if (boat_pax ==1)
-		{
-			numChildrenOnSource --;
-			numChildrenOnDest ++;
+    printf("Boat is crossing the river\n");
+    printf("Boat arrived at source\n");
+    printf("Child Arrive at source\n");
+    numChildrenOnSource ++;
+    numChildrenOnDest --;
+    boat_location = 0;
+    pthread_cond_broadcast(&boat_location_cv);
+}
 
-		}
-		printf("Boat crossed the river\n");	
-	}
+void boatDepartingSource()
+{
+    printf("Boat is crossing the river\n");
+    printf("Boat arrived at destination\n");
+    if (boat_pax==1)
+    {
+        printf("Child Arrive at destination\n");
+        numChildrenOnSource --;
+        numChildrenOnDest ++;
+    }
+    if (boat_pax==2)
+    {
+        for (int i=0; i<2; i++){
+            printf("Child Arrive at destination\n");
+            numChildrenOnSource --;
+            numChildrenOnDest ++;
+        }
+    }
+    boat_location = 1;
+    pthread_cond_broadcast(&boat_location_cv);
 }
