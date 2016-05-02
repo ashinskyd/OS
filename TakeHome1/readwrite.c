@@ -29,18 +29,32 @@ int main()
     pthread_cond_init(&okToRead,NULL);
     
     //sample test code
-    pthread_t mathProf1,mathProf2,csProf1,csProf2;
-    /*pthread_create(&mathProf1, NULL, mathProfArrive,NULL);
-    pthread_create(&mathProf2, NULL, mathProfArrive,NULL);
-    pthread_create(&csProf1, NULL, csProfArrive,NULL);
-    pthread_create(&csProf1, NULL, csProfArrive,NULL);
+    pthread_t reader1,reader2,writer1,writer2,writer3,writer4,writer5,writer6,writer7;
+    pthread_create(&writer1, NULL, Writer,NULL);
+    pthread_create(&writer2, NULL, Writer,NULL);
+    pthread_create(&writer3, NULL, Writer,NULL);
+    pthread_create(&writer4, NULL, Writer,NULL);
+
+    pthread_create(&reader1, NULL, Reader,NULL);
+    pthread_create(&reader2, NULL, Reader,NULL);
     
+    pthread_join(reader1,NULL);
+    pthread_join(reader2,NULL);
     
-    pthread_join(mathProf1,NULL);
-    pthread_join(mathProf2,NULL);
-    pthread_join(csProf1,NULL);
-    pthread_join(csProf2,NULL);
-    */
+    pthread_join(writer1,NULL);
+    pthread_join(writer2,NULL);
+    pthread_join(writer3,NULL);
+    pthread_join(writer4,NULL);
+    
+    pthread_create(&writer5, NULL, Writer,NULL);
+    pthread_create(&writer6, NULL, Writer,NULL);
+    pthread_create(&writer7, NULL, Writer,NULL);
+    
+
+   
+    pthread_join(writer5,NULL);
+    pthread_join(writer6,NULL);
+    pthread_join(writer7,NULL);
     
     //destroy the mutex/cv
     pthread_mutex_destroy(&lock);
@@ -51,8 +65,9 @@ int main()
 
 void *Reader()
 {
+    delay(rand()%5000);
     pthread_mutex_lock(&lock);
-    while (activeWriters + waitingWriters > 0)
+    while ((activeWriters + waitingWriters > 0) && (numWritesInARow % 3 != 0))
     {
         waitingReaders ++;
         pthread_cond_wait(&okToRead, &lock);
@@ -66,6 +81,10 @@ void *Reader()
     
     pthread_mutex_lock(&lock);
     activeReaders --;
+    if (waitingWriters > 0 && numWritesInARow % 3 == 0)
+    {
+        pthread_cond_signal(&okToWrite);
+    }
     pthread_mutex_unlock(&lock);
     
     return (void *)0;
@@ -73,6 +92,7 @@ void *Reader()
 
 void *Writer()
 {
+    delay(rand()%5000);
     pthread_mutex_lock(&lock);
     while (activeWriters + activeReaders > 0)
     {
@@ -90,7 +110,7 @@ void *Writer()
     activeWriters --;
     numWritesInARow ++;
     
-    if (numWritesInARow %% 3 == 0 && waitingReaders > 0)
+    if (numWritesInARow % 3 == 0 && waitingReaders > 0)
     {
         //if 3 writes occured in a row, then signal a reader instead and reset the writesInARow var
         numWritesInARow = 0;
