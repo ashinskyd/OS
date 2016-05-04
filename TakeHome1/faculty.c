@@ -65,9 +65,6 @@ void *mathProfArrive()
     numMathProfsInRoom ++;
     pthread_mutex_unlock(&sign_mutex);
     
-    //random delay before leaving the room
-    delay(rand()%5000);
-    mathProfLeave();
     return (void *)0;
 }
 
@@ -91,9 +88,6 @@ void *csProfArrive()
     numCsProfsInRoom ++;
     pthread_mutex_unlock(&sign_mutex);
     
-    //random delay before leaving the room
-    delay(rand()%5000);
-    csProfLeave();
     return (void *)0;
 }
 
