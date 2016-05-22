@@ -5,6 +5,8 @@
  * Last modified 5/11/2016 by Sherri Goings
  */
 
+ //FILE CREATED BY DAVID ASHINSKY, JOHN G AND KILEY M.
+
 #include <assert.h>
 #include <pthread.h>
 #include <stdio.h>
@@ -240,6 +242,7 @@ extern void wake_up(pcb_t *process) {
                 }
             }else{
                 emptyProcesserId = i;
+                break;
             }
         }
         
@@ -251,8 +254,6 @@ extern void wake_up(pcb_t *process) {
         }
         else if (process->static_priority > lowestRunningPriority)
         {
-            printf("IM ABOUT TO PUT ON THE CPU: %s\n",process->name);
-            fflush(stdout);
             static_priority_force_run_process = process;
             pthread_mutex_unlock(&current_mutex);
             force_preempt(lowestPriorityProcessCpuId);
@@ -315,8 +316,6 @@ static pcb_t* getReadyProcess(void) {
         //case where we force preempted a process off the cpu and need to run another
         pcb_t *forcedProc = static_priority_force_run_process;
         static_priority_force_run_process = NULL;
-        printf("RETRIEVING FORCED PROCESS\n");
-        fflush(stdout);
         pthread_mutex_unlock(&ready_mutex);
         return forcedProc;
     }else{
