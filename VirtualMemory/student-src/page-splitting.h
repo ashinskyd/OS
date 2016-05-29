@@ -1,6 +1,8 @@
 #ifndef _STUDENT_PAGE_SPLITTING_H_
 #define _STUDENT_PAGE_SPLITTING_H_
 
+#include "global.h"
+
 /*******************************************************************************
  * Your assignment for problem 1 is to fix the following macros. 
  * Note: you can put any expression (equation) in the parentheses including
@@ -16,13 +18,13 @@
  * @param addr The virtual address.
  * @return     The virtual page number for this addres.
  */
-#define VADDR_PAGENUM(addr) (/*FIX ME*/ 0)
+#define VADDR_PAGENUM(addr) (addr/(8*page_size))
 
 /*******************************************************************************
  * Get the offset for a particular address.
  * @param addr The virtual address.
  * @return     The offset into a page for the given virtual address.
  */
-#define VADDR_OFFSET(addr) (/*FIX ME*/ 0)
+#define VADDR_OFFSET(addr) (addr%(8*page_size))
 
 #endif/*_STUDENT_PAGE_SPLITTING_H_*/

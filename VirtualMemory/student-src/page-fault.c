@@ -51,6 +51,12 @@ pfn_t pagefault_handler(vpn_t request_vpn, int write) {
    * process' info instead (pcb and vpn)
    * Update the current process' page table (pfn and valid)
    */
+    
+    rlt[victim_pfn].vpn = request_vpn;
+    rlt[victim_pfn].pcb = current;
+    
+    current_pagetable[request_vpn].valid = 1;
+    current_pagetable[request_vpn].pfn = victim_pfn;
 
   /*
    * Retreive the page from disk. Note that is really a lie: we save pages in

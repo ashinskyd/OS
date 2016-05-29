@@ -20,7 +20,14 @@ pfn_t pagetable_lookup(vpn_t vpn, int write) {
     * pagefault_handler (traps to OS, returns frame number), and change pagetable
     * entry to now be valid
     */
-
-
+    if (!current_pagetable[vpn].valid)
+    {
+        count_pagefaults++;
+        pfn = pagefault_handler(vpn,write);
+    }
+    else
+    {
+        pfn = current_pagetable[vpn].pfn;
+    }
    return pfn;
 }
