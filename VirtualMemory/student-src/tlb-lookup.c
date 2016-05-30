@@ -20,7 +20,6 @@ int clockPointer = 0;
 pfn_t tlb_lookup(vpn_t vpn, int write) {
    // currently just skips tlb and goes to pagetable
    pfn_t pfn;
-   
 
    /* 
     * FIX ME : Step 5
@@ -61,7 +60,7 @@ pfn_t tlb_lookup(vpn_t vpn, int write) {
     if (foundHit == 0)
     {
       pfn = pagetable_lookup(vpn, write); 
-      if (firstInvalid != -1)
+      if (firstInvalid != -1) //found an invalid entry
       {
         tlb[firstInvalid].pfn = pfn;
         tlb[firstInvalid].used = 1;
@@ -84,7 +83,7 @@ pfn_t tlb_lookup(vpn_t vpn, int write) {
         tlb[clockPointer].used = 1;
         tlb[clockPointer].valid = 1;
         tlb[clockPointer].dirty = write;
-        tlb[firstInvalid].vpn = vpn;
+        tlb[clockPointer].vpn = vpn;
         current_pagetable[vpn].dirty = write;
         current_pagetable[vpn].used = 1;
         current_pagetable[vpn].valid = 1;
