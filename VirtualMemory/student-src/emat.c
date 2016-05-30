@@ -16,13 +16,40 @@ double compute_emat_all() {
    /* FIX ME - Compute the average memory access time, including required page faults
     * that occur when loading a new process.
     */
-
-   return 0;
+    double accessTime = 0;
+    for (int i=0; i < count_pagefaults; i++)
+    {
+    	accessTime += (2*MEMORY_ACCESS_TIME);
+    	accessTime += DISK_ACCESS_TIME;
+    }
+    for (i=0; i < ((count_reads+count_writes)-(count_pagefaults+count_tlbhits)); i++)
+    {
+    	accessTime += (2*MEMORY_ACCESS_TIME);
+    }
+    for (i=0; i<count_tlbhits; i++)
+    {
+    	accessTime += MEMORY_ACCESS_TIME;
+    }
+   return (accessTime/(count_reads+count_writes));
 }
 
 double compute_emat_unforced() {
    /* FIX ME - Compute the average memory access time NOT including required faults
     */
-
-	return 0;
+  double accessTime = 0;
+    for (int i=0; i < count_diskaccesses; i++)
+    {
+    	accessTime += (2*MEMORY_ACCESS_TIME);
+    	accessTime += DISK_ACCESS_TIME;
+    }
+    for (i=0; i < ((count_reads+count_writes)-(count_diskaccesses+count_tlbhits)); i++)
+    {
+    	accessTime += (2*MEMORY_ACCESS_TIME);
+    }
+    for (i=0; i<count_tlbhits; i++)
+    {
+    	accessTime += MEMORY_ACCESS_TIME;
+    }
+	
+   return (accessTime/(count_reads+count_writes));
 }

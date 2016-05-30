@@ -18,13 +18,13 @@
  * @param addr The virtual address.
  * @return     The virtual page number for this addres.
  */
-#define VADDR_PAGENUM(addr) (addr/(8*page_size))
+#define VADDR_PAGENUM(addr) (addr/page_size)
 
 /*******************************************************************************
  * Get the offset for a particular address.
  * @param addr The virtual address.
  * @return     The offset into a page for the given virtual address.
  */
-#define VADDR_OFFSET(addr) (addr%(8*page_size))
+#define VADDR_OFFSET(addr) (addr%page_size)
 
 #endif/*_STUDENT_PAGE_SPLITTING_H_*/
